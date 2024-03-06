@@ -1,4 +1,4 @@
 [workspace]
-members = ["ascent", "ascent_base", "ascent_macro"] 
+members = ["ascent", "ascent_compile", "ascent_base", "ascent_macro"]
 exclude = ["ascent_tests", "wasm-tests"]
 resolver = "2"

@@ -1,5 +1,5 @@
 [package]
-name = "ascent_macro"
+name = "ascent_compile"
 version = "0.5.0"
 edition = "2021"
 authors = ["Arash Sahebolamri"]
@@ -7,16 +7,10 @@ repository = "https://github.com/s-arash/ascent"
 license = "MIT"
 description = "implementation of ascent macros"
 
-[lib]
-proc-macro = true
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-syn = { version = "1.0.109", features = ["derive", "full", "extra-traits", "visit-mut"] } 
+syn = { version = "1.0.109", features = ["derive", "full", "extra-traits", "visit-mut"] }
 quote = "1.0"
 ascent_base = { version = "=0.5.0", path = "../ascent_base" }
-ascent_compile = { version = "=0.5.0", path = "../ascent_compile" }
 proc-macro2 = "1.0"
 itertools = "0.12.0"
 petgraph = "0.6.0"

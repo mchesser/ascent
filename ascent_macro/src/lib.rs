@@ -1,23 +1,5 @@
-#![allow(warnings)]
-#![allow(unused_imports)]
-mod tests;
-mod ascent_mir;
-mod utils;
-mod ascent_hir;
-mod scratchpad;
-mod ascent_codegen;
-mod ascent_syntax;
-mod test_errors;
-mod syn_utils;
-
-#[macro_use]
-extern crate quote;
-
 extern crate proc_macro;
-use ascent_syntax::{AscentProgram, desugar_ascent_program};
 use proc_macro::TokenStream;
-use syn::Result;
-use crate::{ascent_codegen::compile_mir, ascent_hir::{compile_ascent_program_to_hir}, ascent_mir::{compile_hir_to_mir}};
 
 /// The main macro of the ascent library. Allows writing logical inference rules similar to Datalog.
 /// 
@@ -44,7 +26,7 @@ use crate::{ascent_codegen::compile_mir, ascent_hir::{compile_ascent_program_to_
 /// The type has a `run()` method, which runs the computation to a fixed point.
 #[proc_macro]
 pub fn ascent(input: TokenStream) -> TokenStream {
-   let res = ascent_impl(input.into(), false, false);
+   let res = ascent_compile::ascent_impl(input.into(), false, false);
    
    match res {
       Ok(res) => res.into(),
@@ -54,7 +36,7 @@ pub fn ascent(input: TokenStream) -> TokenStream {
 
 #[proc_macro]
 pub fn ascent_par(input: TokenStream) -> TokenStream {
-   let res = ascent_impl(input.into(), false, true);
+   let res = ascent_compile::ascent_impl(input.into(), false, true);
    
    match res {
       Ok(res) => res.into(),
@@ -81,7 +63,7 @@ pub fn ascent_par(input: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro]
 pub fn ascent_run(input: TokenStream) -> TokenStream {
-   let res = ascent_impl(input.into(), true, false);
+   let res = ascent_compile::ascent_impl(input.into(), true, false);
    
    match res {
       Ok(res) => res.into(),
@@ -91,29 +73,10 @@ pub fn ascent_run(input: TokenStream) -> TokenStream {
 
 #[proc_macro]
 pub fn ascent_run_par(input: TokenStream) -> TokenStream {
-   let res = ascent_impl(input.into(), true, true);
+   let res = ascent_compile::ascent_impl(input.into(), true, true);
    
    match res {
       Ok(res) => res.into(),
       Err(err) => TokenStream::from(err.to_compile_error()),
    }
-}
-
-pub(crate) fn ascent_impl(input: proc_macro2::TokenStream, is_ascent_run: bool, is_parallel: bool) -> Result<proc_macro2::TokenStream> {
-   let prog: AscentProgram = syn::parse2(input)?;
-   // println!("prog relations: {}", prog.relations.len());
-   // println!("parse res: {} relations, {} rules", prog.relations.len(), prog.rules.len());
-
-   let prog = desugar_ascent_program(prog)?;
-   
-   let hir = compile_ascent_program_to_hir(&prog, is_parallel)?;
-   // println!("hir relations: {}", hir.relations_ir_relations.keys().map(|r| &r.name).join(", "));
-
-   let mir = compile_hir_to_mir(&hir)?;
-
-   // println!("mir relations: {}", mir.relations_ir_relations.keys().map(|r| &r.name).join(", "));
-
-   let code = compile_mir(&mir, is_ascent_run);
-
-   Ok(code)
 }

@@ -3,8 +3,8 @@ use ascent_base::util::update;
 use proc_macro2::{Span, TokenStream};
 use syn::{
    braced, parenthesized, parse2, punctuated::Punctuated, spanned::Spanned, Attribute, Error, Expr, ExprMacro,
-   ExprPath, GenericParam, Generics, Ident, ItemMacro2, MacroDelimiter, Pat, Result, Token, Type, Visibility,
-   WhereClause,
+   ExprPath, FieldsNamed, GenericParam, Generics, Ident, ItemMacro2, MacroDelimiter, Pat, Result, Token, Type, 
+   Visibility, WhereClause,
 };
 use syn::token::{Comma, Gt, Lt};
 use syn::parse::{Parse, ParseStream, ParseBuffer, Parser};
@@ -41,18 +41,50 @@ mod kw {
 }
 
 
-#[derive(Clone, Parse)]
+#[derive(Clone)]
 pub struct Declaration {
-   // We don't actually use the Parse impl to parse attrs.
-   #[call(Attribute::parse_outer)]
    pub attrs: Vec<Attribute>,
    pub visibility: Visibility,
    pub struct_kw: Token![struct],
    pub ident: Ident,
-   #[call(parse_generics_with_where_clause)]
    pub generics: Generics,
    pub where_clause: Option<WhereClause>,
-   pub semi: Token![;]
+   pub fields: Option<FieldsNamed>,
+   pub semi: Option<Token![;]>
+}
+
+impl Parse for Declaration {
+   fn parse(input: ::syn::parse::ParseStream) -> ::syn::Result<Self> {
+      // We don't actually use the Parse impl to parse attrs.
+      let attrs: Vec<Attribute> = input.call(Attribute::parse_outer)?;
+      let visibility: Visibility = input.parse()?;
+      let struct_kw: Token![struct] = input.parse()?;
+      let ident: Ident = input.parse()?;
+      let generics: Generics = input.call(parse_generics_with_where_clause)?;
+      let where_clause: Option<WhereClause> = input.parse()?;
+
+      let (fields, semi) = if input.peek(syn::token::Brace) {
+         let fields: FieldsNamed = input.parse()?;
+         let semi = if input.peek(Token![;]) { Some(input.parse()?) } else { None };
+         (Some(fields), semi)
+      }
+      else {
+         let semi: Token![;] = input.parse()?;
+         (None, Some(semi))
+      };
+
+   
+      Ok(Declaration {
+         attrs,
+         visibility,
+         struct_kw,
+         ident,
+         generics,
+         where_clause,
+         fields,
+         semi,
+      })
+   }
 }
 
 /// Parse impl on Generics does not parse WhereClauses, hence this function
@@ -94,22 +126,49 @@ impl Parse for RelationNode {
    }
 }
 
-#[derive(Parse, Clone)]
+#[derive(Clone)]
 pub enum BodyItemNode {
-   #[peek(Token![for], name = "generative clause")]
+   // #[peek(Token![for], name = "generative clause")]
    Generator(GeneratorNode),
-   #[peek(kw::agg, name = "aggregate clause")]
+   // #[peek(kw::agg, name = "aggregate clause")]
    Agg(AggClauseNode),
-   #[peek_with(peek_macro_invocation, name = "macro invocation")]
+   // #[peek_with(peek_macro_invocation, name = "macro invocation")]
    MacroInvocation(syn::ExprMacro),
-   #[peek(Ident, name = "body clause")]
+   // #[peek(Ident, name = "body clause")]
    Clause(BodyClauseNode),
-   #[peek(Token![!], name = "negation clause")]
+   // #[peek(Token![!], name = "negation clause")]
    Negation(NegationClauseNode),
-   #[peek(syn::token::Paren, name = "disjunction node")]
+   // #[peek(syn::token::Paren, name = "disjunction node")]
    Disjunction(DisjunctionNode),
-   #[peek_with(peek_if_or_let, name = "if condition or let binding")]
+   // #[peek_with(peek_if_or_let, name = "if condition or let binding")]
    Cond(CondClause),
+}
+
+impl Parse for BodyItemNode {
+   fn parse(input: ParseStream) -> syn::Result<Self> {
+      if input.peek(Token![for]) {
+         return Ok(Self::Generator(input.parse()?));
+      }
+      if input.peek(kw::agg) {
+         return Ok(Self::Agg(input.parse()?));
+      }
+      if peek_macro_invocation(input) {
+         return Ok(Self::MacroInvocation(input.parse()?));
+      }
+      if input.peek(Ident) {
+         return Ok(Self::Clause(input.parse()?));
+      }
+      if input.peek(Token![!]) {
+         return Ok(Self::Negation(input.parse()?));
+      }
+      if input.peek(syn::token::Paren) {
+         return Ok(Self::Disjunction(input.parse()?));
+      }
+      if peek_if_or_let(input) {
+         return Ok(Self::Cond(input.parse()?));
+      }
+      Err(input.error("expected one of generative clause, aggregate clause, macro invocation, body clause, negation clause, disjunction node, or if condition or let binding"))
+   }
 }
 
 fn peek_macro_invocation(parse_stream: ParseStream) -> bool {
@@ -154,12 +213,21 @@ pub struct BodyClauseNode {
    pub cond_clauses: Vec<CondClause>
 }
 
-#[derive(Parse, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum BodyClauseArg {
-   #[peek(Token![?], name = "Pattern arg")]
+   // #[peek(Token![?], name = "Pattern arg")]
    Pat(ClauseArgPattern),
-   #[peek_with(|_| true, name = "Expression arg")]
+   // #[peek_with(|_| true, name = "Expression arg")]
    Expr(Expr),
+}
+
+impl Parse for BodyClauseArg {
+    fn parse(input: ParseStream) -> Result<Self> {
+      if input.peek(Token![?]) {
+         return Ok(Self::Pat(input.parse()?));
+      }
+      Ok(Self::Expr(input.parse()?))
+   }
 }
 
 impl BodyClauseArg {
