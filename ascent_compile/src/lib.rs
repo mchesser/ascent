@@ -4,7 +4,6 @@ mod tests;
 mod ascent_mir;
 mod utils;
 mod ascent_hir;
-mod scratchpad;
 mod ascent_codegen;
 mod ascent_syntax;
 mod test_errors;
